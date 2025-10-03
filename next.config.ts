@@ -1,7 +1,15 @@
-import type { NextConfig } from "next";
+// next.config.mjs
+import withPWA from "@ducanh2912/next-pwa";
 
-const nextConfig: NextConfig = {
+const pwaConfig = withPWA({
+  dest: "public", // Destination directory for the PWA files
+  register: true, // Automatically register the service worker
+  disable: process.env.NODE_ENV === "development", // Disable PWA in development mode
+});
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   /* config options here */
 };
 
-export default nextConfig;
+export default pwaConfig(nextConfig);
