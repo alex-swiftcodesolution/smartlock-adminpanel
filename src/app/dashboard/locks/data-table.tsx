@@ -3,18 +3,26 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { MoreHorizontal, Lock, Unlock } from "lucide-react";
+import { MoreHorizontal, Lock, Unlock, Wifi, Battery } from "lucide-react";
 
 import { SmartLock } from "@/lib/dummy-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Progress } from "@/components/ui/progress"; // FIX 1: Import Progress component
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Helper function to simulate an API call
+// FIX 2: Define the missing helper function
 const simulateApiCall = () =>
   new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -67,7 +75,8 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
       toast.success(`Lock "${lock.name}" has been ${actionType}ed.`, {
         id: toastId,
       });
-    } catch (error) {
+    } catch (_error) {
+      // FIX 3: Add underscore to signify 'error' is unused
       toast.error(`Failed to ${actionType} lock "${lock.name}".`, {
         id: toastId,
       });
@@ -211,15 +220,86 @@ export const columns: ColumnDef<SmartLock>[] = [
   },
 ];
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-}
+// This is the new component for the mobile view
+const MobileLockCard = ({
+  lock,
+  index,
+}: {
+  lock: SmartLock;
+  index: number;
+}) => {
+  const statusVariant =
+    lock.status === "locked"
+      ? "default"
+      : lock.status === "unlocked"
+      ? "secondary"
+      : "destructive";
 
-export function LocksDataTable<TData, TValue>({
+  return (
+    <motion.div
+      variants={{
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 },
+      }}
+      transition={{ delay: index * 0.05 }}
+    >
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{lock.name}</CardTitle>
+            <Badge variant={statusVariant}>{lock.status}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Location</span>
+            <span>{lock.location}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Battery size={14} /> Battery
+            </span>
+            <span
+              className={lock.battery < 25 ? "text-destructive font-bold" : ""}
+            >
+              {lock.battery}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Wifi size={14} /> Status
+            </span>
+            {lock.isOnline ? (
+              <Badge
+                variant="outline"
+                className="border-green-500 text-green-500"
+              >
+                Online
+              </Badge>
+            ) : (
+              <Badge variant="destructive">Offline</Badge>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter>
+          {/* Actions can be placed here, simplified for mobile */}
+          <Button asChild className="w-full">
+            <Link href={`/dashboard/locks/${lock.id}`}>Manage Device</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    </motion.div>
+  );
+};
+
+// The main DataTable component now renders either the table or the cards
+export function LocksDataTable({
   columns,
   data,
-}: DataTableProps<TData, TValue>) {
+}: {
+  columns: ColumnDef<SmartLock>[];
+  data: SmartLock[];
+}) {
   const table = useReactTable({
     data,
     columns,
@@ -227,47 +307,65 @@ export function LocksDataTable<TData, TValue>({
   });
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+    <div>
+      {/* Mobile Card View */}
+      <motion.div
+        className="grid gap-4 md:hidden"
+        variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
+        initial="hidden"
+        animate="visible"
+      >
+        {data.map((lock, index) => (
+          <MobileLockCard key={lock.id} lock={lock} index={index} />
+        ))}
+      </motion.div>
+
+      {/* Desktop Table View */}
+      <div className="hidden rounded-md border md:block">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No results.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
