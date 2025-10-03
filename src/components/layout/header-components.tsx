@@ -33,7 +33,7 @@ const navItems = [
 ];
 
 /**
- * MobileNav: Mobile navigation with auto-closing sheet.
+ * MobileNav: A fully refined mobile navigation sheet.
  */
 export const MobileNav = memo(() => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,38 +51,53 @@ export const MobileNav = memo(() => {
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="sm:max-w-xs">
-        <nav
-          className="grid gap-6 text-lg font-medium"
-          aria-label="Mobile navigation"
-        >
+      {/* REFINED: Using flexbox for a header-body-footer layout */}
+      <SheetContent side="left" className="flex flex-col p-0">
+        {/* REFINED: A distinct header for branding */}
+        <div className="flex h-14 items-center border-b px-6">
           <Link
             href="/dashboard"
-            className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground"
+            className="flex items-center gap-2 font-semibold"
             onClick={() => setIsOpen(false)}
-            aria-label="LockAdmin Home"
           >
-            <Lock
-              className="h-5 w-5 transition-all group-hover:scale-110"
-              aria-hidden="true"
-            />
+            <Lock className="h-6 w-6 text-primary" aria-hidden="true" />
+            <span className="">LockAdmin</span>
           </Link>
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground",
-                pathname === item.href && "text-foreground"
-              )}
-              onClick={() => setIsOpen(false)}
-              aria-current={pathname === item.href ? "page" : undefined}
-            >
-              <item.icon className="h-5 w-5" aria-hidden="true" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+        </div>
+
+        {/* REFINED: Main navigation area */}
+        <div className="flex-1 overflow-auto py-2">
+          <nav
+            className="grid items-start gap-1 px-4 text-sm font-medium"
+            aria-label="Mobile navigation"
+          >
+            {navItems.map((item) => {
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:bg-muted/50 hover:text-primary",
+                    isActive && "bg-muted text-primary" // Much clearer active state
+                  )}
+                  onClick={() => setIsOpen(false)}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <item.icon className="h-4 w-4" aria-hidden="true" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* NEW: A footer for secondary actions, pushed to the bottom */}
+        <div className="mt-auto border-t p-4">
+          <UserNav />
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -91,6 +106,7 @@ MobileNav.displayName = "MobileNav";
 
 /**
  * UserNav: User avatar with dropdown menu.
+ * No changes needed here, but included for completeness.
  */
 export function UserNav() {
   return (
@@ -127,6 +143,7 @@ export function UserNav() {
 
 /**
  * AppBreadcrumbs: Dynamic breadcrumbs from URL.
+ * No changes needed here, but included for completeness.
  */
 export function AppBreadcrumbs() {
   const pathname = usePathname();
