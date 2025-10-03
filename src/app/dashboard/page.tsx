@@ -1,7 +1,7 @@
-"use client"; // Required for animations
+"use client"; // Required for animations and state
 
 import { motion } from "framer-motion";
-import { getLocks, LockEvent } from "@/lib/dummy-data"; // FIX 1: Import the LockEvent type
+import { getLocks, LockEvent } from "@/lib/dummy-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, BatteryWarning, Lock, Wifi } from "lucide-react";
 import {
@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Animation variants for staggering children
 const containerVariants = {
@@ -33,7 +34,6 @@ const itemVariants = {
   },
 };
 
-// FIX 2: Define a specific type for our recent events and the overall state
 type RecentEvent = LockEvent & { lockName: string };
 
 interface DashboardStats {
@@ -43,17 +43,84 @@ interface DashboardStats {
   recentEvents: RecentEvent[];
 }
 
+/**
+ * NEW: A dedicated skeleton component for the dashboard.
+ */
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <Skeleton className="h-9 w-1/3" />
+
+      {/* Skeleton for Stat Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Skeleton className="h-4 w-2/5" />
+              <Skeleton className="h-4 w-4 rounded-full" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-7 w-1/3" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Skeleton for Recent Activity Table */}
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Skeleton className="h-5 w-full" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-5 w-full" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-5 w-full" />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-  // FIX 3: Apply the new type to useState for proper type checking
   const [stats, setStats] = useState<DashboardStats>({
     totalLocks: 0,
     onlineLocks: 0,
     lowBatteryLocks: 0,
     recentEvents: [],
   });
+  const [isLoading, setIsLoading] = useState(true); // NEW: Loading state
 
   useEffect(() => {
     async function fetchData() {
+      // Small delay to make skeleton visible for demonstration
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const locks = await getLocks();
       const totalLocks = locks.length;
       const onlineLocks = locks.filter((l) => l.isOnline).length;
@@ -66,9 +133,15 @@ export default function DashboardPage() {
         )
         .slice(0, 5);
       setStats({ totalLocks, onlineLocks, lowBatteryLocks, recentEvents });
+      setIsLoading(false); // Set loading to false after data is set
     }
     fetchData();
   }, []);
+
+  // REFINED: Render the skeleton while loading
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -143,7 +216,6 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* FIX 4: Access recentEvents from the stats object */}
                 {stats.recentEvents.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell className="font-medium">
