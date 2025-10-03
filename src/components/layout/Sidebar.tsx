@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InstallPWAButton } from "./InstallPWAButton";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -94,7 +95,8 @@ export function Sidebar() {
                 Contact our support team for assistance.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent className="p-4 pt-0 space-y-2">
+              <InstallPWAButton isFullWidth={true} />
               <Button size="sm" className="w-full">
                 <LifeBuoy className="mr-2 h-4 w-4" />
                 Contact Support
