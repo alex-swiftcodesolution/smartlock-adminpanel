@@ -1,9 +1,9 @@
 // app/api/tuya/devices/[deviceId]/commands/route.ts
 
 import crypto from "crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// Again, these should be moved to a shared helper file in a real app.
+// Environment variables
 const accessId = process.env.TUYA_ACCESS_ID as string;
 const secret = process.env.TUYA_SECRET_KEY as string;
 const baseUrl = (process.env.TUYA_BASE_URL ?? "").replace(/\/$/, "");
@@ -19,7 +19,7 @@ function safeHeaders(
   return out;
 }
 
-// !! IMPORTANT: New sign function for POST requests with a body !!
+// Sign function for POST requests with body
 function buildSignWithBody(
   method: string,
   body: string,
@@ -39,13 +39,12 @@ function buildSignWithBody(
 }
 
 async function getTuyaToken(): Promise<{ access_token: string }> {
-  // Same token function as before
   const method = "GET";
   const urlPath = "/v1.0/token?grant_type=1";
   const url = `${baseUrl}${urlPath}`;
   const t = Date.now().toString();
   const nonce = crypto.randomUUID();
-  const sign = buildSignWithBody(method, "", "", urlPath, t, nonce); // Using empty body for GET
+  const sign = buildSignWithBody(method, "", "", urlPath, t, nonce);
   const headers = safeHeaders({
     client_id: accessId,
     sign,
@@ -53,25 +52,26 @@ async function getTuyaToken(): Promise<{ access_token: string }> {
     sign_method: "HMAC-SHA256",
     nonce,
   });
+
   const res = await fetch(url, { headers });
   const data = await res.json();
   if (!data.success) throw new Error("Token fetch failed");
   return data.result;
 }
 
-/* --- The POST Handler for Sending Commands --- */
+/* --- POST Handler (Next.js 15+ Compatible) --- */
 export async function POST(
-  req: Request,
-  { params }: { params: { deviceId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ deviceId: string }> } // ← Promise!
 ) {
   try {
-    // --- THE FIX ---
-    // 1. Await the request body first.
-    const body = await req.json();
+    // 1. Parse body first (safe & async)
+    const body = await request.json();
 
-    // 2. Now, it's safe to access params.
-    const { deviceId } = params;
+    // 2. Await dynamic route params
+    const { deviceId } = await params;
 
+    // 3. Validate required field
     if (!body.commands) {
       return NextResponse.json(
         { success: false, error: "Commands are required in body" },
@@ -79,7 +79,10 @@ export async function POST(
       );
     }
 
+    // 4. Get Tuya token
     const { access_token: token } = await getTuyaToken();
+
+    // 5. Prepare request to Tuya
     const method = "POST";
     const urlPath = `/v1.0/devices/${deviceId}/commands`;
     const url = `${baseUrl}${urlPath}`;
@@ -106,20 +109,24 @@ export async function POST(
       nonce,
     });
 
-    const res = await fetch(url, { method, headers, body: bodyString });
+    // 6. Send command to Tuya
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: bodyString,
+    });
     const data = await res.json();
 
-    // Check the response from Tuya and return it
+    // 7. Handle Tuya response
     if (!data.success) {
       console.error("Tuya command failed:", data);
-      // Forward the specific error message from Tuya to the client
       return NextResponse.json(
         { success: false, error: data.msg || "Unknown Tuya API error" },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(data); // Forward the successful Tuya response
+    return NextResponse.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Tuya command API error:", err);
