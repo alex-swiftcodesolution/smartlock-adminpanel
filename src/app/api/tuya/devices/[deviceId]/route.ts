@@ -1,12 +1,9 @@
 // app/api/tuya/devices/[deviceId]/route.ts
 
 import crypto from "crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// IMPORTANT: It's better to move these helpers to a shared file,
-// e.g., 'lib/tuya-helpers.ts', to avoid duplication.
-// For simplicity, we'll copy them here for now.
-
+// Environment variables
 const accessId = process.env.TUYA_ACCESS_ID as string;
 const secret = process.env.TUYA_SECRET_KEY as string;
 const baseUrl = (process.env.TUYA_BASE_URL ?? "").replace(/\/$/, "");
@@ -42,7 +39,6 @@ function safeHeaders(
 }
 
 async function getTuyaToken(): Promise<{ access_token: string }> {
-  // This is the same token function from your other route
   const method = "GET";
   const urlPath = "/v1.0/token?grant_type=1";
   const url = `${baseUrl}${urlPath}`;
@@ -56,21 +52,26 @@ async function getTuyaToken(): Promise<{ access_token: string }> {
     sign_method: "HMAC-SHA256",
     nonce,
   });
+
   const res = await fetch(url, { headers });
   const data = await res.json();
+
   if (!data.success || !data.result?.access_token) {
     throw new Error(`Token failed: ${data.msg ?? "Unknown error"}`);
   }
+
   return data.result;
 }
 
-/* --- The GET Handler for a Single Device --- */
+/* --- GET Handler (Next.js 15+ Compatible) --- */
 export async function GET(
-  req: Request,
-  { params }: { params: { deviceId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ deviceId: string }> } // ← Now a Promise!
 ) {
   try {
-    const { deviceId } = params;
+    // Must await params in Next.js 15+
+    const { deviceId } = await params;
+
     if (!deviceId) {
       return NextResponse.json(
         { success: false, error: "Device ID is required" },
@@ -81,7 +82,7 @@ export async function GET(
     const { access_token: token } = await getTuyaToken();
 
     const method = "GET";
-    const urlPath = `/v1.0/devices/${deviceId}`; // The correct endpoint for a single device
+    const urlPath = `/v1.0/devices/${deviceId}`;
     const url = `${baseUrl}${urlPath}`;
     const t = Date.now().toString();
     const nonce = crypto.randomUUID();
@@ -96,7 +97,10 @@ export async function GET(
       nonce,
     });
 
-    const res = await fetch(url, { headers, cache: "no-store" });
+    const res = await fetch(url, {
+      headers,
+      cache: "no-store", // Ensures fresh data
+    });
     const data = await res.json();
 
     if (!data.success) {
