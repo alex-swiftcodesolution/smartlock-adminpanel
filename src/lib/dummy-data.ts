@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type LockEvent = {
   id: string;
   type: "unlocked" | "locked" | "jammed" | "low_battery";
@@ -104,15 +105,66 @@ export const dummyLocks: SmartLock[] = [
   },
 ];
 
-// Helper function to simulate fetching data
+const mapTuyaDeviceToSmartLock = (device: any): SmartLock => {
+  if (!device) return null as any;
+
+  const getStatusValue = (code: string): any => {
+    // Note: The details endpoint has `status` directly, the list endpoint has `status`
+    const statusList = device.status || [];
+    const status = statusList.find((s: any) => s.code === code);
+    return status ? status.value : undefined;
+  };
+
+  // Confirm the 'code' for your lock in the Tuya IoT Platform (Device Debugging)
+  const isLocked = getStatusValue("lock_motor_state");
+  const batteryValue =
+    getStatusValue("battery_percentage") ??
+    getStatusValue("battery_state") ??
+    100;
+
+  return {
+    id: device.id,
+    name: device.name,
+    status:
+      isLocked === true ? "locked" : isLocked === false ? "unlocked" : "jammed",
+    battery:
+      typeof batteryValue === "number"
+        ? batteryValue
+        : batteryValue === "high"
+        ? 90
+        : 20,
+    isOnline: device.online,
+    location: "Tuya Cloud",
+    model: device.product_name,
+    // NOTE: Fetching real events requires another API call to /logs. We'll leave it empty.
+    events: [],
+  };
+};
+
 export const getLocks = async (): Promise<SmartLock[]> => {
-  return new Promise((resolve) => setTimeout(() => resolve(dummyLocks), 500));
+  try {
+    const res = await fetch("/api/tuya/devices", { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.success || !data.devices) return [];
+    return data.devices.map(mapTuyaDeviceToSmartLock); // Use the mapping function
+  } catch (error) {
+    console.error("Error loading locks:", error);
+    return [];
+  }
 };
 
 export const getLockById = async (
   id: string
 ): Promise<SmartLock | undefined> => {
-  return new Promise((resolve) =>
-    setTimeout(() => resolve(dummyLocks.find((lock) => lock.id === id)), 500)
-  );
+  try {
+    const res = await fetch(`/api/tuya/devices/${id}`, { cache: "no-store" });
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    if (!data.success || !data.device) return undefined;
+    return mapTuyaDeviceToSmartLock(data.device); // Use the same mapping function
+  } catch (error) {
+    console.error(`Error loading lock ${id}:`, error);
+    return undefined;
+  }
 };

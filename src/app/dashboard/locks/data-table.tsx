@@ -76,6 +76,7 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
         id: toastId,
       });
     } catch (_error) {
+      console.error(`Failed to ${actionType} lock:`, _error);
       // FIX 3: Add underscore to signify 'error' is unused
       toast.error(`Failed to ${actionType} lock "${lock.name}".`, {
         id: toastId,

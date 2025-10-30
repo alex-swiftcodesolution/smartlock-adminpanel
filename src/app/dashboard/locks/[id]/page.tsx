@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { notFound } from "next/navigation";
@@ -32,10 +33,6 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton"; // Add this component via `npx shadcn-ui@latest add skeleton`
-
-// Helper function to simulate an API call
-const simulateApiCall = () =>
-  new Promise((resolve) => setTimeout(resolve, 1200));
 
 /**
  * NEW: A dedicated component for displaying a single activity log item on mobile.
@@ -77,6 +74,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const fetchLock = async () => {
+      // This now calls our updated getLockById which uses the live API
       const fetchedLock = await getLockById(params.id);
       if (fetchedLock) {
         setLock(fetchedLock);
@@ -93,7 +91,27 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
     const toastId = toast.loading(`Sending ${action} command...`);
 
     try {
-      await simulateApiCall(); // Replace with your actual Tuya API call
+      // Replace simulateApiCall with a real fetch to our new command endpoint
+      const res = await fetch(`/api/tuya/devices/${lock.id}/commands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commands: [
+            // Again, confirm 'lock_motor_state' is the correct code for your device.
+            { code: "lock_motor_state", value: action === "lock" },
+          ],
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(
+          result.error || result.msg || "Failed to send command."
+        );
+      }
+
+      // Optimistically update the UI
       setLock((prevLock) =>
         prevLock
           ? { ...prevLock, status: action === "lock" ? "locked" : "unlocked" }
@@ -102,8 +120,8 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
       toast.success(`Successfully sent ${action} command to "${lock.name}".`, {
         id: toastId,
       });
-    } catch (_error) {
-      toast.error(`Failed to ${action} the lock. Please try again.`, {
+    } catch (error: any) {
+      toast.error(`Failed to ${action} the lock: ${error.message}`, {
         id: toastId,
       });
     } finally {
