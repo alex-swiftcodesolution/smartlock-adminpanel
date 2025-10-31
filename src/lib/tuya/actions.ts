@@ -1,4 +1,3 @@
-// lib/tuya/actions.ts
 export const sendLockCommand = async (
   id: string,
   action: "lock" | "unlock"
@@ -9,7 +8,7 @@ export const sendLockCommand = async (
     body: JSON.stringify({ action }),
   });
 
-  const data = await res.json(); // Always parse first
+  const data = await res.json();
 
   if (!res.ok) {
     throw new Error("Network error");

@@ -32,9 +32,6 @@ const navItems = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-/**
- * MobileNav: A fully refined mobile navigation sheet.
- */
 export const MobileNav = memo(() => {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
@@ -51,9 +48,8 @@ export const MobileNav = memo(() => {
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>
-      {/* REFINED: Using flexbox for a header-body-footer layout */}
+
       <SheetContent side="left" className="flex flex-col p-0">
-        {/* REFINED: A distinct header for branding */}
         <div className="flex h-14 items-center border-b px-6">
           <Link
             href="/dashboard"
@@ -65,7 +61,6 @@ export const MobileNav = memo(() => {
           </Link>
         </div>
 
-        {/* REFINED: Main navigation area */}
         <div className="flex-1 overflow-auto py-2">
           <nav
             className="grid items-start gap-1 px-4 text-sm font-medium"
@@ -81,7 +76,7 @@ export const MobileNav = memo(() => {
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:bg-muted/50 hover:text-primary",
-                    isActive && "bg-muted text-primary" // Much clearer active state
+                    isActive && "bg-muted text-primary"
                   )}
                   onClick={() => setIsOpen(false)}
                   aria-current={isActive ? "page" : undefined}
@@ -94,7 +89,6 @@ export const MobileNav = memo(() => {
           </nav>
         </div>
 
-        {/* NEW: A footer for secondary actions, pushed to the bottom */}
         <div className="mt-auto border-t p-4">
           <UserNav />
         </div>
@@ -104,10 +98,6 @@ export const MobileNav = memo(() => {
 });
 MobileNav.displayName = "MobileNav";
 
-/**
- * UserNav: User avatar with dropdown menu.
- * No changes needed here, but included for completeness.
- */
 export function UserNav() {
   return (
     <div className="flex gap-4 items-center">
@@ -141,10 +131,6 @@ export function UserNav() {
   );
 }
 
-/**
- * AppBreadcrumbs: Dynamic breadcrumbs from URL.
- * No changes needed here, but included for completeness.
- */
 export function AppBreadcrumbs() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);

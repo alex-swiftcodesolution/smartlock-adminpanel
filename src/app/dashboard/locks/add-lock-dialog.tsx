@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartLock } from "@/lib/dummy-data";
-import { Loader, CheckCircle, Wifi, Router } from "lucide-react";
+import { Loader, CheckCircle, Router } from "lucide-react";
 
 interface AddLockDialogProps {
   isOpen: boolean;

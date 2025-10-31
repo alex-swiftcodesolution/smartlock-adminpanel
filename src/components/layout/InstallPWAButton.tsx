@@ -22,7 +22,7 @@ export function InstallPWAButton({ isFullWidth = false }) {
         size="sm"
         className={isFullWidth ? "w-full" : ""}
         onClick={promptInstall}
-        variant="default" // Assuming this is a custom variant, otherwise use 'default', 'outline' etc.
+        variant="default"
       >
         <Download className="mr-2 h-4 w-4" />
         Install App

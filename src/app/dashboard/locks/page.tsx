@@ -18,10 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-/**
- * NEW: A dedicated skeleton component that mimics the page's layout.
- * This provides a much better user experience than a simple "Loading..." text.
- */
 function LocksPageSkeleton() {
   return (
     <div className="flex flex-col gap-6">
@@ -87,7 +83,6 @@ export default function LocksPage() {
 
   useEffect(() => {
     const loadLocks = async () => {
-      // Intentionally add a small delay to make the skeleton visible for demonstration
       await new Promise((resolve) => setTimeout(resolve, 750));
       const data = await getLocks();
       setLocks(data);
@@ -98,11 +93,10 @@ export default function LocksPage() {
 
   const handleLockAdded = (newLock: SmartLock) => {
     setLocks((prevLocks) => [newLock, ...prevLocks]);
-    setIsDialogOpen(false); // Close the dialog
+    setIsDialogOpen(false);
     toast.success(`Successfully added lock: "${newLock.name}"`);
   };
 
-  // REFINED: Render the new skeleton component while loading
   if (isLoading) {
     return <LocksPageSkeleton />;
   }
