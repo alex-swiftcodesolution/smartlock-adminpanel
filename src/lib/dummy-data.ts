@@ -44,10 +44,6 @@ export const mapTuyaToLock = (device: any): SmartLock | undefined => {
   };
 };
 
-export const dummyLocks: SmartLock[] = [
-  /* unchanged */
-];
-
 export const getLocks = async (): Promise<SmartLock[]> => {
   try {
     const res = await fetch("/api/tuya/devices", { cache: "no-store" });
