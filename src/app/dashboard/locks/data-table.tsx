@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import * as React from "react";
@@ -13,9 +14,10 @@ import {
 import { MoreHorizontal, Lock, Unlock, Wifi, Battery } from "lucide-react";
 
 import { SmartLock } from "@/lib/dummy-data";
+import { sendLockCommand } from "@/lib/tuya/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress"; // FIX 1: Import Progress component
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -47,11 +49,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// FIX 2: Define the missing helper function
-const simulateApiCall = () =>
-  new Promise((resolve) => setTimeout(resolve, 1000));
-
-// The ActionsCell component is updated to have a separate button
 const ActionsCell = ({ lock }: { lock: SmartLock }) => {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [actionType, setActionType] = React.useState<"lock" | "unlock" | null>(
@@ -66,19 +63,14 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
 
   const handleConfirm = async () => {
     if (!actionType) return;
-
     setIsSubmitting(true);
     const toastId = toast.loading(`Sending ${actionType} command...`);
 
     try {
-      await simulateApiCall(); // Replace with your actual API call
-      toast.success(`Lock "${lock.name}" has been ${actionType}ed.`, {
-        id: toastId,
-      });
-    } catch (_error) {
-      console.error(`Failed to ${actionType} lock:`, _error);
-      // FIX 3: Add underscore to signify 'error' is unused
-      toast.error(`Failed to ${actionType} lock "${lock.name}".`, {
+      await sendLockCommand(lock.id, actionType);
+      toast.success(`Lock "${lock.name}" ${actionType}ed.`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Failed to ${actionType} lock: ${err.message}`, {
         id: toastId,
       });
     } finally {
@@ -90,14 +82,11 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
   return (
     <>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        {/* We now use a flex container to align the button and the dropdown */}
         <div className="flex items-center justify-end gap-2">
-          {/* THE NEW PROMINENT BUTTON */}
           <Button asChild variant="outline" size="sm">
             <Link href={`/dashboard/locks/${lock.id}`}>View Details</Link>
           </Button>
 
-          {/* The dropdown now only contains secondary actions */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
@@ -112,26 +101,25 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
                 disabled={lock.status === "unlocked"}
               >
                 <Unlock className="mr-2 h-4 w-4" />
-                <span>Remote Unlock</span>
+                Remote Unlock
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => handleActionClick("lock")}
                 disabled={lock.status === "locked"}
               >
                 <Lock className="mr-2 h-4 w-4" />
-                <span>Remote Lock</span>
+                Remote Lock
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* The Dialog for confirmation remains unchanged */}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Action</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remotely{" "}
-              <span className="font-semibold">{actionType}</span> the lock named{" "}
+              Remotely <span className="font-semibold">{actionType}</span> the
+              lock{" "}
               <span className="font-semibold">&quot;{lock.name}&quot;</span>?
             </DialogDescription>
           </DialogHeader>
@@ -144,7 +132,7 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
               Cancel
             </Button>
             <Button onClick={handleConfirm} disabled={isSubmitting}>
-              {isSubmitting ? `Confirming...` : `Confirm ${actionType}`}
+              {isSubmitting ? "Confirming..." : `Confirm ${actionType}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -153,7 +141,6 @@ const ActionsCell = ({ lock }: { lock: SmartLock }) => {
   );
 };
 
-// The columns definition remains the same, as it just renders the ActionsCell
 export const columns: ColumnDef<SmartLock>[] = [
   {
     accessorKey: "name",
@@ -184,7 +171,7 @@ export const columns: ColumnDef<SmartLock>[] = [
     accessorKey: "battery",
     header: "Battery",
     cell: ({ row }) => {
-      const battery = parseFloat(row.getValue("battery"));
+      const battery = Number(row.getValue("battery"));
       return (
         <div className="flex items-center gap-2">
           <Progress value={battery} className="w-24" />
@@ -196,15 +183,14 @@ export const columns: ColumnDef<SmartLock>[] = [
   {
     accessorKey: "isOnline",
     header: "Connectivity",
-    cell: ({ row }) => {
-      return row.getValue("isOnline") ? (
+    cell: ({ row }) =>
+      row.getValue("isOnline") ? (
         <Badge variant="outline" className="border-green-500 text-green-500">
           Online
         </Badge>
       ) : (
         <Badge variant="destructive">Offline</Badge>
-      );
-    },
+      ),
   },
   {
     accessorKey: "location",
@@ -212,7 +198,6 @@ export const columns: ColumnDef<SmartLock>[] = [
   },
   {
     id: "actions",
-    // We align the cell content to the right
     cell: ({ row }) => (
       <div className="text-right">
         <ActionsCell lock={row.original} />
@@ -221,7 +206,6 @@ export const columns: ColumnDef<SmartLock>[] = [
   },
 ];
 
-// This is the new component for the mobile view
 const MobileLockCard = ({
   lock,
   index,
@@ -235,6 +219,16 @@ const MobileLockCard = ({
       : lock.status === "unlocked"
       ? "secondary"
       : "destructive";
+
+  const handleAction = async (action: "lock" | "unlock") => {
+    const toastId = toast.loading(`Sending ${action} command...`);
+    try {
+      await sendLockCommand(lock.id, action);
+      toast.success(`Lock ${action}ed.`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Failed: ${err.message}`, { id: toastId });
+    }
+  };
 
   return (
     <motion.div
@@ -282,10 +276,26 @@ const MobileLockCard = ({
             )}
           </div>
         </CardContent>
-        <CardFooter>
-          {/* Actions can be placed here, simplified for mobile */}
-          <Button asChild className="w-full">
-            <Link href={`/dashboard/locks/${lock.id}`}>Manage Device</Link>
+        <CardFooter className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            disabled={lock.status === "locked"}
+            onClick={() => handleAction("lock")}
+          >
+            <Lock className="mr-1 h-3 w-3" /> Lock
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="flex-1"
+            disabled={lock.status === "unlocked"}
+            onClick={() => handleAction("unlock")}
+          >
+            <Unlock className="mr-1 h-3 w-3" /> Unlock
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/dashboard/locks/${lock.id}`}>View</Link>
           </Button>
         </CardFooter>
       </Card>
@@ -293,7 +303,6 @@ const MobileLockCard = ({
   );
 };
 
-// The main DataTable component now renders either the table or the cards
 export function LocksDataTable({
   columns,
   data,
@@ -309,32 +318,26 @@ export function LocksDataTable({
 
   return (
     <div>
-      {/* Mobile Card View */}
       <motion.div
         className="grid gap-4 md:hidden"
-        variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
         initial="hidden"
         animate="visible"
       >
-        {data.map((lock, index) => (
-          <MobileLockCard key={lock.id} lock={lock} index={index} />
+        {data.map((lock, i) => (
+          <MobileLockCard key={lock.id} lock={lock} index={i} />
         ))}
       </motion.div>
 
-      {/* Desktop Table View */}
       <div className="hidden rounded-md border md:block">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
+            {table.getHeaderGroups().map((g) => (
+              <TableRow key={g.id}>
+                {g.headers.map((h) => (
+                  <TableHead key={h.id}>
+                    {h.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : flexRender(h.column.columnDef.header, h.getContext())}
                   </TableHead>
                 ))}
               </TableRow>

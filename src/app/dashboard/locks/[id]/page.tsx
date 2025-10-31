@@ -3,6 +3,7 @@
 
 import { notFound } from "next/navigation";
 import { getLockById, SmartLock, LockEvent } from "@/lib/dummy-data";
+import { sendLockCommand } from "@/lib/tuya/actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,34 +33,34 @@ import {
 } from "@/components/ui/table";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton"; // Add this component via `npx shadcn-ui@latest add skeleton`
+import { Skeleton } from "@/components/ui/skeleton";
 
-/**
- * NEW: A dedicated component for displaying a single activity log item on mobile.
- */
 const ActivityLogItem = ({ event }: { event: LockEvent }) => {
-  const getIconForEventType = () => {
-    switch (event.type) {
-      case "locked":
-        return <Lock className="h-5 w-5 text-muted-foreground" />;
-      case "unlocked":
-        return <Unlock className="h-5 w-5 text-muted-foreground" />;
-      case "low_battery":
-        return <BatteryWarning className="h-5 w-5 text-yellow-500" />;
-      case "jammed":
-        return <AlertTriangle className="h-5 w-5 text-destructive" />;
-      default:
-        return <Activity className="h-5 w-5 text-muted-foreground" />;
-    }
-  };
+  const Icon =
+    {
+      locked: Lock,
+      unlocked: Unlock,
+      low_battery: BatteryWarning,
+      jammed: AlertTriangle,
+    }[event.type] ?? Activity;
 
   return (
     <div className="flex items-start gap-4 p-4 border-b last:border-b-0">
-      <div className="mt-1">{getIconForEventType()}</div>
+      <div className="mt-1">
+        <Icon
+          className={`h-5 w-5 ${
+            event.type === "low_battery"
+              ? "text-yellow-500"
+              : event.type === "jammed"
+              ? "text-destructive"
+              : "text-muted-foreground"
+          }`}
+        />
+      </div>
       <div className="flex-1">
         <p className="font-medium">{event.message}</p>
         <p className="text-sm text-muted-foreground">
-          by {event.user || "System"} on{" "}
+          by {event.user ?? "System"} on{" "}
           {new Date(event.timestamp).toLocaleString()}
         </p>
       </div>
@@ -67,70 +68,52 @@ const ActivityLogItem = ({ event }: { event: LockEvent }) => {
   );
 };
 
-export default function LockDetailPage({ params }: { params: { id: string } }) {
+export default function LockDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const [lock, setLock] = useState<SmartLock | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   useEffect(() => {
     const fetchLock = async () => {
-      // This now calls our updated getLockById which uses the live API
-      const fetchedLock = await getLockById(params.id);
-      if (fetchedLock) {
-        setLock(fetchedLock);
+      try {
+        const { id } = await params;
+        const fetched = await getLockById(id);
+        setLock(fetched ?? null);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     fetchLock();
-  }, [params.id]);
+  }, [params]);
 
   const handleAction = async (action: "lock" | "unlock") => {
     if (!lock) return;
-
     setIsActionLoading(true);
     const toastId = toast.loading(`Sending ${action} command...`);
-
     try {
-      // Replace simulateApiCall with a real fetch to our new command endpoint
-      const res = await fetch(`/api/tuya/devices/${lock.id}/commands`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          commands: [
-            // Again, confirm 'lock_motor_state' is the correct code for your device.
-            { code: "lock_motor_state", value: action === "lock" },
-          ],
-        }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        throw new Error(
-          result.error || result.msg || "Failed to send command."
-        );
-      }
-
-      // Optimistically update the UI
-      setLock((prevLock) =>
-        prevLock
-          ? { ...prevLock, status: action === "lock" ? "locked" : "unlocked" }
+      await sendLockCommand(lock.id, action);
+      setLock((prev) =>
+        prev
+          ? { ...prev, status: action === "lock" ? "locked" : "unlocked" }
           : null
       );
-      toast.success(`Successfully sent ${action} command to "${lock.name}".`, {
+      toast.success(`Lock ${action === "lock" ? "locked" : "unlocked"}.`, {
         id: toastId,
       });
-    } catch (error: any) {
-      toast.error(`Failed to ${action} the lock: ${error.message}`, {
-        id: toastId,
-      });
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`, { id: toastId });
     } finally {
       setIsActionLoading(false);
     }
   };
 
   if (isLoading) {
-    // A better loading state for the page
     return (
       <div className="flex flex-col gap-6">
         <div className="space-y-2">
@@ -146,9 +129,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!lock) {
-    notFound();
-  }
+  if (!lock) notFound();
 
   const statusVariant =
     lock.status === "locked"
@@ -164,8 +145,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
         <p className="text-muted-foreground">{lock.location}</p>
       </div>
 
-      {/* REFINED: Grid layout is now simpler and more robust */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Controls</CardTitle>
@@ -235,14 +215,10 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
             <Activity className="h-5 w-5" /> Activity Log
           </CardTitle>
         </CardHeader>
-        {/* REFINED: Conditionally render mobile list or desktop table */}
         <CardContent className="p-0">
-          {/* Mobile View: A list of ActivityLogItem components */}
           <div className="lg:hidden">
-            {lock.events.length > 0 ? (
-              lock.events.map((event) => (
-                <ActivityLogItem key={event.id} event={event} />
-              ))
+            {lock.events.length ? (
+              lock.events.map((e) => <ActivityLogItem key={e.id} event={e} />)
             ) : (
               <p className="p-6 text-center text-muted-foreground">
                 No activity recorded.
@@ -250,7 +226,6 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          {/* Desktop View: The original table */}
           <div className="hidden lg:block">
             <Table>
               <TableHeader>
@@ -262,16 +237,16 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lock.events.length > 0 ? (
-                  lock.events.map((event) => (
-                    <TableRow key={event.id}>
+                {lock.events.length ? (
+                  lock.events.map((e) => (
+                    <TableRow key={e.id}>
                       <TableCell className="font-medium capitalize">
-                        {event.type}
+                        {e.type}
                       </TableCell>
-                      <TableCell>{event.user || "System"}</TableCell>
-                      <TableCell>{event.message}</TableCell>
+                      <TableCell>{e.user ?? "System"}</TableCell>
+                      <TableCell>{e.message}</TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {new Date(event.timestamp).toLocaleString()}
+                        {new Date(e.timestamp).toLocaleString()}
                       </TableCell>
                     </TableRow>
                   ))
