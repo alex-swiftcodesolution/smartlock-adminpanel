@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/tuya/devices/[deviceId]/commands/route.ts
 import { lockDevice, unlockDevice } from "@/lib/tuya/commands";
 import { NextResponse } from "next/server";

@@ -1,3 +1,4 @@
+// lib/tuya/types.ts
 export interface TuyaToken {
   access_token: string;
   refresh_token: string;
@@ -10,6 +11,7 @@ export interface TuyaDevice {
   name: string;
   online: boolean;
   product_name: string;
+  status?: { code: string; value: unknown }[];
   [k: string]: unknown;
 }
 

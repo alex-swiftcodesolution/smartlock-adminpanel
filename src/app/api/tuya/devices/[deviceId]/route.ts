@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getDevice } from "@/lib/tuya/devices";
 import { NextResponse } from "next/server";
 

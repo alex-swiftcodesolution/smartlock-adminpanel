@@ -1,28 +1,23 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/dashboard/locks/[id]/page.tsx
 "use client";
 
 import { notFound } from "next/navigation";
-import { getLockById, SmartLock, LockEvent } from "@/lib/dummy-data";
+import {
+  getLockById,
+  fetchRecords,
+  fetchStatus,
+  createTempPwd,
+} from "@/lib/locks/api";
+import type { SmartLock } from "@/lib/locks/types";
 import { sendLockCommand } from "@/lib/tuya/actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  Activity,
-  Lock,
-  Unlock,
-  Wifi,
-  BatteryWarning,
-  AlertTriangle,
-} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,237 +26,234 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Activity,
+  Lock,
+  Unlock,
+  Wifi,
+  DoorOpen,
+  DoorClosed,
+  Key,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
 
-const ActivityLogItem = ({ event }: { event: LockEvent }) => {
-  const Icon =
-    {
-      locked: Lock,
-      unlocked: Unlock,
-      low_battery: BatteryWarning,
-      jammed: AlertTriangle,
-    }[event.type] ?? Activity;
-
+function DetailSkeleton() {
   return (
-    <div className="flex items-start gap-4 p-4 border-b last:border-b-0">
-      <div className="mt-1">
-        <Icon
-          className={`h-5 w-5 ${
-            event.type === "low_battery"
-              ? "text-yellow-500"
-              : event.type === "jammed"
-              ? "text-destructive"
-              : "text-muted-foreground"
-          }`}
-        />
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-9 w-96" />
+        <Skeleton className="h-5 w-64 mt-2" />
       </div>
-      <div className="flex-1">
-        <p className="font-medium">{event.message}</p>
-        <p className="text-sm text-muted-foreground">
-          by {event.user ?? "System"} on{" "}
-          {new Date(event.timestamp).toLocaleString()}
-        </p>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Skeleton className="h-48" />
+        <Skeleton className="h-48 lg:col-span-2" />
       </div>
+      <Skeleton className="h-96" />
     </div>
   );
-};
+}
 
-export default function LockDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function LockDetailPage({ params }: { params: { id: string } }) {
   const [lock, setLock] = useState<SmartLock | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [records, setRecords] = useState<any[]>([]);
+  const [tab, setTab] = useState("log");
+  const [pwdName, setPwdName] = useState("");
+  const [pwdVal, setPwdVal] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLock = async () => {
-      try {
-        const { id } = await params;
-        const fetched = await getLockById(id);
-        setLock(fetched ?? null);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchLock();
-  }, [params]);
+    (async () => {
+      const l = await getLockById(params.id);
+      const s = await fetchStatus(params.id);
+      const r = await fetchRecords(params.id);
+      if (l) setLock({ ...l, battery: Number(s.battery), door: s.door });
+      setRecords(r);
+      setLoading(false);
+    })();
+  }, [params.id]);
 
-  const handleAction = async (action: "lock" | "unlock") => {
-    if (!lock) return;
-    setIsActionLoading(true);
-    const toastId = toast.loading(`Sending ${action} command...`);
+  const run = async (a: "lock" | "unlock") => {
     try {
-      await sendLockCommand(lock.id, action);
-      setLock((prev) =>
-        prev
-          ? { ...prev, status: action === "lock" ? "locked" : "unlocked" }
-          : null
+      await sendLockCommand(params.id, a);
+      setLock((p) =>
+        p ? { ...p, status: a === "lock" ? "locked" : "unlocked" } : null
       );
-      toast.success(`Lock ${action === "lock" ? "locked" : "unlocked"}.`, {
-        id: toastId,
-      });
-    } catch (e: any) {
-      toast.error(`Failed: ${e.message}`, { id: toastId });
-    } finally {
-      setIsActionLoading(false);
+      toast.success(`${a}ed`);
+    } catch {
+      toast.error("Failed");
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-1/3" />
-          <Skeleton className="h-5 w-1/4" />
-        </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Skeleton className="h-56 lg:col-span-1" />
-          <Skeleton className="h-56 lg:col-span-2" />
-        </div>
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
+  const makePwd = async () => {
+    try {
+      await createTempPwd(params.id, pwdName, pwdVal);
+      toast.success(`Password ${pwdVal} created`);
+      setPwdName("");
+      setPwdVal("");
+    } catch {
+      toast.error("Failed");
+    }
+  };
 
-  if (!lock) notFound();
-
-  const statusVariant =
-    lock.status === "locked"
-      ? "default"
-      : lock.status === "unlocked"
-      ? "secondary"
-      : "destructive";
+  if (loading) return <DetailSkeleton />;
+  if (!lock) return notFound();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">{lock.name}</h1>
         <p className="text-muted-foreground">{lock.location}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader>
             <CardTitle>Controls</CardTitle>
-            <CardDescription>Perform remote actions.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="space-y-4">
             <Button
               size="lg"
-              disabled={lock.status === "locked" || isActionLoading}
-              onClick={() => handleAction("lock")}
+              className="w-full"
+              onClick={() => run("lock")}
+              disabled={lock.status === "locked"}
             >
-              <Lock className="mr-2 h-4 w-4" />
-              {isActionLoading ? "Locking..." : "Lock Remotely"}
+              <Lock className="mr-2" />
+              Lock
             </Button>
             <Button
               size="lg"
               variant="secondary"
-              disabled={lock.status === "unlocked" || isActionLoading}
-              onClick={() => handleAction("unlock")}
+              className="w-full"
+              onClick={() => run("unlock")}
+              disabled={lock.status === "unlocked"}
             >
-              <Unlock className="mr-2 h-4 w-4" />
-              {isActionLoading ? "Unlocking..." : "Unlock Remotely"}
+              <Unlock className="mr-2" />
+              Unlock
             </Button>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Device Information</CardTitle>
+            <CardTitle>Status</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Status</span>
-              <Badge variant={statusVariant}>{lock.status}</Badge>
+          <CardContent className="space-y-4 text-sm">
+            <div className="flex justify-between">
+              <span>Status</span>
+              <Badge
+                variant={lock.status === "locked" ? "default" : "secondary"}
+              >
+                {lock.status}
+              </Badge>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Connectivity</span>
-              {lock.isOnline ? (
-                <span className="flex items-center gap-2 text-green-500">
-                  <Wifi size={16} /> Online
-                </span>
+            <div className="flex justify-between">
+              <span>Door</span>
+              {lock.door ? (
+                <DoorOpen className="text-green-500" />
               ) : (
-                <span className="text-red-500">Offline</span>
+                <DoorClosed />
               )}
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Battery</span>
+            <div className="flex justify-between">
+              <span>Battery</span>
               <div className="flex items-center gap-2">
                 <Progress value={lock.battery} className="w-24" />
-                <span>{lock.battery}%</span>
+                {lock.battery}%
               </div>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Model</span>
-              <span className="font-medium">{lock.model}</span>
+            <div className="flex justify-between">
+              <span>Online</span>
+              {lock.isOnline ? <Wifi className="text-green-500" /> : "Offline"}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" /> Activity Log
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="lg:hidden">
-            {lock.events.length ? (
-              lock.events.map((e) => <ActivityLogItem key={e.id} event={e} />)
-            ) : (
-              <p className="p-6 text-center text-muted-foreground">
-                No activity recorded.
-              </p>
-            )}
-          </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="log">Log</TabsTrigger>
+          <TabsTrigger value="pwd">Temp PWD</TabsTrigger>
+          <TabsTrigger value="alert">Alerts</TabsTrigger>
+        </TabsList>
 
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="text-right">Timestamp</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lock.events.length ? (
-                  lock.events.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium capitalize">
-                        {e.type}
-                      </TableCell>
-                      <TableCell>{e.user ?? "System"}</TableCell>
-                      <TableCell>{e.message}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {new Date(e.timestamp).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
+        <TabsContent value="log">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Activity className="inline mr-2" />
+                Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                      No activity recorded.
-                    </TableCell>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>User</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {records.map((r) => (
+                    <TableRow key={r.record_id}>
+                      <TableCell>
+                        {new Date(r.create_time * 1000).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{r.event_desc}</TableCell>
+                      <TableCell>{r.user_name || "System"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pwd">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Key className="inline mr-2" />
+                One-Time Password
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Name</Label>
+                <Input
+                  placeholder="Guest"
+                  value={pwdName}
+                  onChange={(e) => setPwdName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>6-digit</Label>
+                <Input
+                  maxLength={6}
+                  value={pwdVal}
+                  onChange={(e) => setPwdVal(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <Button onClick={makePwd}>Create</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="alert">
+          <Button
+            onClick={async () =>
+              setRecords(await fetchRecords(params.id, "alert"))
+            }
+          >
+            Load Alerts
+          </Button>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

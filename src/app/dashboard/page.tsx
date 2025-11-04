@@ -1,7 +1,8 @@
-"use client"; // Required for animations and state
+// src/app/dashboard/page.tsx
+"use client";
 
 import { motion } from "framer-motion";
-import { getLocks, LockEvent } from "@/lib/dummy-data";
+import { getLocks, fetchRecords } from "@/lib/locks/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, BatteryWarning, Lock, Wifi } from "lucide-react";
 import {
@@ -12,96 +13,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useState } from "react";
 
-// Animation variants for staggering children
-const containerVariants = {
+const container = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
 };
+const item = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-  },
-};
-
-type RecentEvent = LockEvent & { lockName: string };
-
-interface DashboardStats {
-  totalLocks: number;
-  onlineLocks: number;
-  lowBatteryLocks: number;
-  recentEvents: RecentEvent[];
-}
-
-/**
- * NEW: A dedicated skeleton component for the dashboard.
- */
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
-      <Skeleton className="h-9 w-1/3" />
-
-      {/* Skeleton for Stat Cards */}
+    <div className="space-y-6">
+      <Skeleton className="h-9 w-48" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
+        {[...Array(3)].map((_, i) => (
           <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-4 w-4 rounded-full" />
+            <CardHeader>
+              <Skeleton className="h-5 w-32" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-7 w-1/3" />
+              <Skeleton className="h-8 w-20" />
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {/* Skeleton for Recent Activity Table */}
       <Card>
         <CardHeader>
-          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-6 w-40" />
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Skeleton className="h-5 w-full" />
-                </TableHead>
-                <TableHead>
-                  <Skeleton className="h-5 w-full" />
-                </TableHead>
-                <TableHead>
-                  <Skeleton className="h-5 w-full" />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-5 w-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-full" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <Skeleton className="h-64" />
         </CardContent>
       </Card>
     </div>
@@ -109,129 +51,118 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalLocks: 0,
-    onlineLocks: 0,
-    lowBatteryLocks: 0,
-    recentEvents: [],
+  const [stats, setStats] = useState({
+    total: 0,
+    online: 0,
+    lowBat: 0,
+    events: [] as any[],
   });
-  const [isLoading, setIsLoading] = useState(true); // NEW: Loading state
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
-      // Small delay to make skeleton visible for demonstration
-      await new Promise((resolve) => setTimeout(resolve, 500));
+    (async () => {
       const locks = await getLocks();
-      const totalLocks = locks.length;
-      const onlineLocks = locks.filter((l) => l.isOnline).length;
-      const lowBatteryLocks = locks.filter((l) => l.battery < 25).length;
-      const recentEvents = locks
-        .flatMap((l) => l.events.map((e) => ({ ...e, lockName: l.name })))
-        .sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      const total = locks.length;
+      const online = locks.filter((l) => l.isOnline).length;
+      const lowBat = locks.filter((l) => l.battery < 25).length;
+
+      const evs = (
+        await Promise.all(
+          locks.slice(0, 3).map(async (l) => {
+            const r = await fetchRecords(l.id);
+            return r.map((e: any) => ({ ...e, lockName: l.name }));
+          })
         )
+      )
+        .flat()
+        .sort((a: any, b: any) => b.create_time - a.create_time)
         .slice(0, 5);
-      setStats({ totalLocks, onlineLocks, lowBatteryLocks, recentEvents });
-      setIsLoading(false); // Set loading to false after data is set
-    }
-    fetchData();
+
+      setStats({ total, online, lowBat, events: evs });
+      setLoading(false);
+    })();
   }, []);
 
-  // REFINED: Render the skeleton while loading
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
-
-      {/* Animated Grid */}
       <motion.div
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        variants={containerVariants}
+        variants={container}
         initial="hidden"
         animate="visible"
       >
-        <motion.div variants={itemVariants}>
+        <motion.div variants={item}>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Locks</CardTitle>
-              <Lock className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm">Total</CardTitle>
+              <Lock className="h-4 w-4" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalLocks}</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div variants={itemVariants}>
+        <motion.div variants={item}>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Online</CardTitle>
-              <Wifi className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm">Online</CardTitle>
+              <Wifi className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {stats.onlineLocks} / {stats.totalLocks}
+                {stats.online}/{stats.total}
               </div>
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div variants={itemVariants}>
+        <motion.div variants={item}>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Low Battery Alerts
-              </CardTitle>
-              <BatteryWarning className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm">Low Battery</CardTitle>
+              <BatteryWarning className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">
-                {stats.lowBatteryLocks}
+                {stats.lowBat}
               </div>
             </CardContent>
           </Card>
         </motion.div>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" /> Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lock</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="text-right">Time</TableHead>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Lock</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead className="text-right">Time</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.events.map((e) => (
+                <TableRow key={e.record_id}>
+                  <TableCell className="font-medium">{e.lockName}</TableCell>
+                  <TableCell>{e.event_desc}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {new Date(e.create_time * 1000).toLocaleTimeString()}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.recentEvents.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">
-                      {event.lockName}
-                    </TableCell>
-                    <TableCell>{event.message}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {new Date(event.timestamp).toLocaleTimeString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </motion.div>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }
