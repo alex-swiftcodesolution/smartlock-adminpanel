@@ -1,33 +1,34 @@
-// app/api/tuya/devices/[deviceId]/commands/route.ts
 import { lockDevice, unlockDevice } from "@/lib/tuya/commands";
 import { NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api/errorHandler";
+import { z } from "zod";
+
+const schema = z.object({
+  action: z.enum(["lock", "unlock"]),
+});
 
 export const POST = async (
   req: Request,
   { params }: { params: Promise<{ deviceId: string }> }
 ) => {
-  const { action } = await req.json();
   const { deviceId } = await params;
+  const body = await req.json();
 
-  if (!["lock", "unlock"].includes(action)) {
+  const parse = schema.safeParse(body);
+  if (!parse.success) {
     return NextResponse.json(
       { success: false, error: "Invalid action" },
       { status: 400 }
     );
   }
 
-  try {
-    if (action === "unlock") {
-      await unlockDevice(deviceId);
-    } else {
-      await lockDevice(deviceId);
-    }
+  const { action } = parse.data;
 
-    return NextResponse.json({ success: true }); // Clean success
-  } catch (e: any) {
-    return NextResponse.json(
-      { success: false, error: e.message },
-      { status: 500 }
-    );
+  try {
+    if (action === "unlock") await unlockDevice(deviceId);
+    else await lockDevice(deviceId);
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    return handleApiError(e);
   }
 };

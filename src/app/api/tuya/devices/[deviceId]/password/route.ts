@@ -1,6 +1,14 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/api/tuya/devices/[deviceId]/password/route.ts
 import { createPassword } from "@/lib/tuya/commands";
 import { NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api/errorHandler";
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string().min(1),
+  password: z.string().min(1),
+  type: z.enum(["temp", "one_time", "dynamic"]).optional().default("temp"),
+});
 
 export const POST = async (
   req: Request,
@@ -8,13 +16,19 @@ export const POST = async (
 ) => {
   const { deviceId } = await params;
   const body = await req.json();
-  try {
-    const pwd = await createPassword(deviceId, body);
-    return NextResponse.json({ success: true, password: pwd });
-  } catch (e: any) {
+
+  const parse = schema.safeParse(body);
+  if (!parse.success) {
     return NextResponse.json(
-      { success: false, error: e.message },
-      { status: 500 }
+      { success: false, error: parse.error.issues[0].message },
+      { status: 400 }
     );
+  }
+
+  try {
+    const pwd = await createPassword(deviceId, parse.data);
+    return NextResponse.json({ success: true, password: pwd });
+  } catch (e) {
+    return handleApiError(e);
   }
 };

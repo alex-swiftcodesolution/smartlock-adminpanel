@@ -73,3 +73,17 @@ export const safeHeaders = (
   Object.fromEntries(
     Object.entries(base).filter(([, v]) => v != null)
   ) as Record<string, string>;
+
+export const eventMap: Record<string, string> = {
+  unlock_app: "App",
+  unlock_password: "Password",
+  unlock_fingerprint: "Fingerprint",
+  unlock_card: "Card",
+  unlock_face: "Face",
+  unlock_key: "Key",
+  unlock_temporary: "Temp PWD",
+  unlock_dynamic: "Dynamic PWD",
+  hijack: "Duress",
+  alarm_lock: "Alarm",
+  doorbell: "Doorbell",
+};

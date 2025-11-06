@@ -1,9 +1,15 @@
 import type { SmartLock } from "./types";
+import { TuyaDevice } from "../tuya/types";
 
-const getStatus = (device: any, code: string) =>
-  (device.status ?? []).find((s: any) => s.code === code)?.value;
+const getStatus = (device: TuyaDevice, code: string) =>
+  (device.status ?? []).find((s) => s.code === code)?.value;
 
-export const mapTuyaToLock = (device: any): SmartLock | undefined => {
+/**
+ * Maps raw Tuya device to SmartLock
+ */
+export const mapTuyaToLock = (
+  device: TuyaDevice | null
+): SmartLock | undefined => {
   if (!device) return;
   const locked = getStatus(device, "lock_motor_state");
   const battery =
@@ -30,7 +36,10 @@ export const mapTuyaToLock = (device: any): SmartLock | undefined => {
 
 // REAL API CALLS
 export const getLocks = async (): Promise<SmartLock[]> => {
-  const res = await fetch("/api/tuya/devices", { cache: "no-store" });
+  const res = await fetch("/api/tuya/devices", {
+    cache: "no-store",
+    next: { revalidate: 0 },
+  });
   if (!res.ok) return [];
   const { devices } = await res.json();
   return devices.map(mapTuyaToLock).filter(Boolean) as SmartLock[];
@@ -39,19 +48,14 @@ export const getLocks = async (): Promise<SmartLock[]> => {
 export const getLockById = async (
   id: string
 ): Promise<SmartLock | undefined> => {
-  const res = await fetch(`/api/tuya/devices/${id}`, { cache: "no-store" });
+  const res = await fetch(`/api/tuya/devices/${id}`, {
+    cache: "no-store",
+    next: { revalidate: 0 },
+  });
   if (!res.ok) return;
   const { device } = await res.json();
   return mapTuyaToLock(device);
 };
-
-// export const fetchRecords = async (
-//   id: string,
-//   type: "unlock" | "alert" = "unlock"
-// ) => {
-//   const res = await fetch(`/api/tuya/devices/${id}/records?type=${type}`);
-//   return res.ok ? (await res.json()).records : [];
-// };
 
 export const fetchRecords = async (
   id: string,
@@ -59,13 +63,16 @@ export const fetchRecords = async (
   page = 1
 ) => {
   const res = await fetch(
-    `/api/tuya/devices/${id}/records?type=${type}&page=${page}`
+    `/api/tuya/devices/${id}/records?type=${type}&page=${page}`,
+    { next: { revalidate: 0 } }
   );
   return res.ok ? (await res.json()).records : [];
 };
 
 export const fetchStatus = async (id: string) => {
-  const res = await fetch(`/api/tuya/devices/${id}/status`);
+  const res = await fetch(`/api/tuya/devices/${id}/status`, {
+    next: { revalidate: 0 },
+  });
   return res.ok ? await res.json() : { battery: 0 };
 };
 

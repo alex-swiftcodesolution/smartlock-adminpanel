@@ -1,4 +1,3 @@
-// src/app/dashboard/page.tsx
 "use client";
 
 import { motion } from "framer-motion";
@@ -16,6 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { eventMap } from "@/lib/utils";
 
 const container = {
   hidden: { opacity: 0 },
@@ -51,28 +51,22 @@ function DashboardSkeleton() {
   );
 }
 
+type EventRecord = {
+  update_time: number;
+  lockName: string;
+  status: { code: string; value?: string };
+  avatar?: string;
+  nick_name?: string;
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState({
     total: 0,
     online: 0,
     lowBat: 0,
-    events: [] as any[],
+    events: [] as EventRecord[],
   });
   const [loading, setLoading] = useState(true);
-
-  const eventMap: Record<string, string> = {
-    unlock_app: "App",
-    unlock_password: "Password",
-    unlock_fingerprint: "Fingerprint",
-    unlock_card: "Card",
-    unlock_face: "Face",
-    unlock_key: "Key",
-    unlock_temporary: "Temp PWD",
-    unlock_dynamic: "Dynamic PWD",
-    hijack: "Duress",
-    alarm_lock: "Alarm",
-    doorbell: "Doorbell",
-  };
 
   useEffect(() => {
     (async () => {
@@ -85,15 +79,15 @@ export default function DashboardPage() {
         await Promise.all(
           locks.slice(0, 3).map(async (l) => {
             const r = await fetchRecords(l.id, "all");
-            return r.map((e: any) => ({
-              ...e,
+            return r.map((e: unknown) => ({
+              ...(e as EventRecord),
               lockName: l.name,
             }));
           })
         )
       )
         .flat()
-        .sort((a: any, b: any) => b.update_time - a.update_time)
+        .sort((a: EventRecord, b: EventRecord) => b.update_time - a.update_time)
         .slice(0, 5);
 
       setStats({ total, online, lowBat, events: evs });
@@ -185,6 +179,7 @@ export default function DashboardPage() {
                         width={20}
                         height={20}
                         className="rounded-full"
+                        loading="lazy"
                       />
                       <span className="text-sm">{e.nick_name || "System"}</span>
                     </TableCell>

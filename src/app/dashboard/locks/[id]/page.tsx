@@ -1,4 +1,3 @@
-// src/app/dashboard/locks/[id]/page.tsx
 "use client";
 
 import { notFound } from "next/navigation";
@@ -40,6 +39,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { eventMap } from "@/lib/utils";
 
 function DetailSkeleton() {
   return (
@@ -57,9 +57,16 @@ function DetailSkeleton() {
   );
 }
 
+type Record = {
+  update_time: number;
+  status: { code: string; value?: string };
+  avatar?: string;
+  nick_name?: string;
+};
+
 export default function LockDetailPage({ params }: { params: { id: string } }) {
   const [lock, setLock] = useState<SmartLock | null>(null);
-  const [records, setRecords] = useState<any[]>([]);
+  const [records, setRecords] = useState<Record[]>([]);
   const [tab, setTab] = useState("log");
   const [pwdName, setPwdName] = useState("");
   const [pwdVal, setPwdVal] = useState("");
@@ -71,7 +78,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
       const s = await fetchStatus(params.id);
       const r = await fetchRecords(params.id, "all");
       if (l) setLock({ ...l, battery: Number(s.battery), door: s.door });
-      setRecords(r);
+      setRecords(r as Record[]);
       setLoading(false);
     })();
   }, [params.id]);
@@ -101,20 +108,6 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
 
   if (loading) return <DetailSkeleton />;
   if (!lock) return notFound();
-
-  const eventMap: Record<string, string> = {
-    unlock_app: "Unlocked via App",
-    unlock_password: "Unlocked with Password",
-    unlock_fingerprint: "Unlocked with Fingerprint",
-    unlock_card: "Unlocked with Card",
-    unlock_face: "Unlocked with Face",
-    unlock_key: "Unlocked with Key",
-    unlock_temporary: "Temporary Password",
-    unlock_dynamic: "Dynamic Password",
-    hijack: "Duress Alert",
-    alarm_lock: "Lock Alarm",
-    doorbell: "Doorbell",
-  };
 
   return (
     <div className="space-y-6">
@@ -228,6 +221,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
                             width={24}
                             height={24}
                             className="rounded-full"
+                            loading="lazy"
                           />
                           <span>{r.nick_name || "System"}</span>
                         </TableCell>
@@ -283,8 +277,8 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
             className="mb-4"
             onClick={async () => {
               const alerts = await fetchRecords(params.id, "alert");
-              setRecords(alerts);
-              setTab("alert"); // stay on the Alerts tab
+              setRecords(alerts as Record[]);
+              setTab("alert");
             }}
           >
             Load Alerts
@@ -313,7 +307,6 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
                     {records.map((r) => {
                       const alert = eventMap[r.status.code] || r.status.code;
                       const raw = r.status.value ?? "";
-                      // hijack value is "unlock_fingerprint-02" → show method only
                       const detail = raw.includes("-")
                         ? raw
                             .split("-")[0]
@@ -331,6 +324,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
                               width={24}
                               height={24}
                               className="rounded-full"
+                              loading="lazy"
                             />
                             <span>{r.nick_name || "System"}</span>
                           </TableCell>
