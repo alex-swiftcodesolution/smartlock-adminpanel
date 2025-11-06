@@ -1,28 +1,28 @@
-// next.config.mjs
+// next.config.ts
 import withPWA from "@ducanh2912/next-pwa";
+import type { NextConfig } from "next";
 
 const pwaConfig = withPWA({
-  dest: "public", // Destination directory for the PWA files
-  register: true, // Automatically register the service worker
-  disable: process.env.NODE_ENV === "development", // Disable PWA in development mode
+  dest: "public",
+  register: true,
+  disable: process.env.NODE_ENV === "development",
 });
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  /* config options here */
+const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-
   images: {
     remotePatterns: [
       {
         protocol: "https",
         hostname: "euimagesd2h2yqnfpu4gl5.cdn5th.com",
+        pathname: "**", // ← add this
       },
       {
         protocol: "https",
-        hostname: "images.tuyaeu.com", // optional fallback for other Tuya hosts
+        hostname: "images.tuyaeu.com",
+        pathname: "**", // ← add this
       },
     ],
   },
