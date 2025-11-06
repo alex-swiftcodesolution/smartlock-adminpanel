@@ -70,7 +70,7 @@ export const tuyaFetch = async <T>(
       sign_method: "HMAC-SHA256",
       nonce,
     }),
-    body: bodyStr || undefined,
+    body: method !== "GET" && bodyStr ? bodyStr : undefined,
   });
   const data = (await res.json()) as TuyaResponse<T>;
   if (!data.success) throw new Error(data.msg);

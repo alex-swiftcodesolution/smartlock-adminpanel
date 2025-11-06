@@ -45,11 +45,22 @@ export const getLockById = async (
   return mapTuyaToLock(device);
 };
 
+// export const fetchRecords = async (
+//   id: string,
+//   type: "unlock" | "alert" = "unlock"
+// ) => {
+//   const res = await fetch(`/api/tuya/devices/${id}/records?type=${type}`);
+//   return res.ok ? (await res.json()).records : [];
+// };
+
 export const fetchRecords = async (
   id: string,
-  type: "unlock" | "alert" = "unlock"
+  type: "unlock" | "alert" | "all" = "all",
+  page = 1
 ) => {
-  const res = await fetch(`/api/tuya/devices/${id}/records?type=${type}`);
+  const res = await fetch(
+    `/api/tuya/devices/${id}/records?type=${type}&page=${page}`
+  );
   return res.ok ? (await res.json()).records : [];
 };
 

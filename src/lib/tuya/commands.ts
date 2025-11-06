@@ -74,15 +74,37 @@ export const requestRemoteUnlock = async (id: string) =>
   );
 
 // ── Records ───────────────────────────────────────
-export const getRecords = (
-  id: string,
+
+export const getRecords = async (
+  deviceId: string,
   type: "unlock" | "alert" = "unlock",
-  page = 1
-) =>
-  tuyaFetch("GET", `/v1.0/smart-lock/devices/${id}/records/${type}`, {
-    page_no: page,
-    page_size: 50,
+  page = 1,
+  pageSize = 50
+) => {
+  const base =
+    type === "alert"
+      ? `/v1.0/devices/${deviceId}/door-lock/alarm-logs`
+      : `/v1.0/devices/${deviceId}/door-lock/open-logs`;
+
+  const query = new URLSearchParams({
+    page_no: String(page),
+    page_size: String(pageSize),
+    start_time: String(Math.floor(Date.now() / 1000) - 30 * 24 * 3600),
+    end_time: String(Math.floor(Date.now() / 1000)),
   });
+
+  if (type === "alert") {
+    query.set("codes", "hijack,alarm_lock,doorbell");
+  }
+
+  const fullPath = `${base}?${query.toString()}`;
+
+  return await tuyaFetch<{
+    total: number;
+    logs?: any[];
+    records?: any[];
+  }>("GET", fullPath);
+};
 
 // ── Doorbell ──────────────────────────────────────
 export const getDoorbellEvents = (id: string, page = 1) =>

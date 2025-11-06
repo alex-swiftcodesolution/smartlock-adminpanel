@@ -35,9 +35,11 @@ import {
   DoorOpen,
   DoorClosed,
   Key,
+  AlertTriangle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import Image from "next/image";
 
 function DetailSkeleton() {
   return (
@@ -67,7 +69,7 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
     (async () => {
       const l = await getLockById(params.id);
       const s = await fetchStatus(params.id);
-      const r = await fetchRecords(params.id);
+      const r = await fetchRecords(params.id, "all");
       if (l) setLock({ ...l, battery: Number(s.battery), door: s.door });
       setRecords(r);
       setLoading(false);
@@ -99,6 +101,20 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
 
   if (loading) return <DetailSkeleton />;
   if (!lock) return notFound();
+
+  const eventMap: Record<string, string> = {
+    unlock_app: "Unlocked via App",
+    unlock_password: "Unlocked with Password",
+    unlock_fingerprint: "Unlocked with Fingerprint",
+    unlock_card: "Unlocked with Card",
+    unlock_face: "Unlocked with Face",
+    unlock_key: "Unlocked with Key",
+    unlock_temporary: "Temporary Password",
+    unlock_dynamic: "Dynamic Password",
+    hijack: "Duress Alert",
+    alarm_lock: "Lock Alarm",
+    doorbell: "Doorbell",
+  };
 
   return (
     <div className="space-y-6">
@@ -193,21 +209,38 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Event</TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Time</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((r) => (
-                    <TableRow key={r.record_id}>
-                      <TableCell>
-                        {new Date(r.create_time * 1000).toLocaleString()}
-                      </TableCell>
-                      <TableCell>{r.event_desc}</TableCell>
-                      <TableCell>{r.user_name || "System"}</TableCell>
-                    </TableRow>
-                  ))}
+                  {records.map((r) => {
+                    const event = eventMap[r.status.code] || r.status.code;
+                    const value = r.status.value;
+                    const detail = value && value !== "0" ? ` (${value})` : "";
+                    return (
+                      <TableRow key={r.update_time}>
+                        <TableCell className="flex items-center gap-2">
+                          <Image
+                            src={r.avatar || "/fallback-avatar.png"}
+                            alt={r.nick_name || "User"}
+                            width={24}
+                            height={24}
+                            className="rounded-full"
+                          />
+                          <span>{r.nick_name || "System"}</span>
+                        </TableCell>
+                        <TableCell>
+                          {event}
+                          {detail}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(r.update_time).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -246,12 +279,76 @@ export default function LockDetailPage({ params }: { params: { id: string } }) {
 
         <TabsContent value="alert">
           <Button
-            onClick={async () =>
-              setRecords(await fetchRecords(params.id, "alert"))
-            }
+            variant="destructive"
+            className="mb-4"
+            onClick={async () => {
+              const alerts = await fetchRecords(params.id, "alert");
+              setRecords(alerts);
+              setTab("alert"); // stay on the Alerts tab
+            }}
           >
             Load Alerts
           </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Alerts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {records.length === 0 ? (
+                <p className="text-muted-foreground">No alerts yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Alert</TableHead>
+                      <TableHead>Detail</TableHead>
+                      <TableHead>Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {records.map((r) => {
+                      const alert = eventMap[r.status.code] || r.status.code;
+                      const raw = r.status.value ?? "";
+                      // hijack value is "unlock_fingerprint-02" → show method only
+                      const detail = raw.includes("-")
+                        ? raw
+                            .split("-")[0]
+                            .replace("unlock_", "")
+                            .replace("_", " ")
+                        : raw && raw !== "0"
+                        ? raw
+                        : "";
+                      return (
+                        <TableRow key={r.update_time} className="text-red-700">
+                          <TableCell className="flex items-center gap-2">
+                            <Image
+                              src={r.avatar || "/fallback-avatar.png"}
+                              alt={r.nick_name || "User"}
+                              width={24}
+                              height={24}
+                              className="rounded-full"
+                            />
+                            <span>{r.nick_name || "System"}</span>
+                          </TableCell>
+                          <TableCell className="font-medium">{alert}</TableCell>
+                          <TableCell className="italic">
+                            {detail ? `via ${detail}` : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(r.update_time).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

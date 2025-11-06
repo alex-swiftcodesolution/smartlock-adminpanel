@@ -13,6 +13,19 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "euimagesd2h2yqnfpu4gl5.cdn5th.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.tuyaeu.com", // optional fallback for other Tuya hosts
+      },
+    ],
+  },
 };
 
 export default pwaConfig(nextConfig);

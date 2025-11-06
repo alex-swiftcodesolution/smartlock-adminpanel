@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const container = {
   hidden: { opacity: 0 },
@@ -59,6 +60,20 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
 
+  const eventMap: Record<string, string> = {
+    unlock_app: "App",
+    unlock_password: "Password",
+    unlock_fingerprint: "Fingerprint",
+    unlock_card: "Card",
+    unlock_face: "Face",
+    unlock_key: "Key",
+    unlock_temporary: "Temp PWD",
+    unlock_dynamic: "Dynamic PWD",
+    hijack: "Duress",
+    alarm_lock: "Alarm",
+    doorbell: "Doorbell",
+  };
+
   useEffect(() => {
     (async () => {
       const locks = await getLocks();
@@ -69,13 +84,16 @@ export default function DashboardPage() {
       const evs = (
         await Promise.all(
           locks.slice(0, 3).map(async (l) => {
-            const r = await fetchRecords(l.id);
-            return r.map((e: any) => ({ ...e, lockName: l.name }));
+            const r = await fetchRecords(l.id, "all");
+            return r.map((e: any) => ({
+              ...e,
+              lockName: l.name,
+            }));
           })
         )
       )
         .flat()
-        .sort((a: any, b: any) => b.create_time - a.create_time)
+        .sort((a: any, b: any) => b.update_time - a.update_time)
         .slice(0, 5);
 
       setStats({ total, online, lowBat, events: evs });
@@ -145,20 +163,41 @@ export default function DashboardPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Lock</TableHead>
-                <TableHead>Message</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Event</TableHead>
                 <TableHead className="text-right">Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stats.events.map((e) => (
-                <TableRow key={e.record_id}>
-                  <TableCell className="font-medium">{e.lockName}</TableCell>
-                  <TableCell>{e.event_desc}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {new Date(e.create_time * 1000).toLocaleTimeString()}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {stats.events.map((e) => {
+                const event = eventMap[e.status.code] || e.status.code;
+                const value =
+                  e.status.value && e.status.value !== "0"
+                    ? ` (${e.status.value})`
+                    : "";
+                return (
+                  <TableRow key={e.update_time}>
+                    <TableCell className="font-medium">{e.lockName}</TableCell>
+                    <TableCell className="flex items-center gap-2">
+                      <Image
+                        src={e.avatar || "/fallback-avatar.png"}
+                        alt={e.nick_name || "User"}
+                        width={20}
+                        height={20}
+                        className="rounded-full"
+                      />
+                      <span className="text-sm">{e.nick_name || "System"}</span>
+                    </TableCell>
+                    <TableCell>
+                      {event}
+                      {value}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground text-sm">
+                      {new Date(e.update_time).toLocaleTimeString()}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
