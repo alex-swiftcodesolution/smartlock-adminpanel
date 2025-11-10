@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { SmartLock } from "./types";
 import { TuyaDevice } from "../tuya/types";
 
